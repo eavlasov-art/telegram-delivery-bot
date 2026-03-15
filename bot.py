@@ -2,6 +2,18 @@ import asyncio
 import logging
 from pathlib import Path
 
+
+from tgbot.config import settings
+import os
+
+# ОТЛАДКА
+print("=== ЗАПУСК БОТА ===")
+print(f"1. ADMIN_IDS из os.environ: {os.environ.get('ADMIN_IDS')}")
+print(f"2. settings.ADMIN_IDS (сырое): {settings.ADMIN_IDS}")
+print(f"3. settings.bot.admin_ids (после парсинга): {settings.bot.admin_ids}")
+print("=" * 30)
+
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode

@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     
     # Telegram Bot
     BOT_TOKEN: str
-    ADMIN_IDS: str = ""
+    ADMIN_IDS: str = ""  # ДОЛЖНО БЫТЬ СТРОКОЙ, НЕ СПИСКОМ!
     
     # Database
     DB_HOST: str = "localhost"
@@ -147,26 +147,6 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     USE_REDIS: bool = False
     
-    # Webhook (если используется)
-    WEBHOOK_DOMAIN: Optional[str] = None
-    WEBHOOK_PATH: str = "/webhook"
-    WEBHOOK_HOST: str = "0.0.0.0"
-    WEBHOOK_PORT: int = 8080
-    WEBHOOK_MAX_CONNECTIONS: int = 40
-    
-    # Logging
-    LOG_LEVEL: LogLevel = LogLevel.INFO
-    LOG_CHAT_ID: Optional[int] = None
-    ENABLE_FILE_LOGGING: bool = False
-    LOG_FILE: str = "logs/bot.log"
-    
-    # Scheduler
-    SCHEDULER_ENABLED: bool = False
-    SCHEDULER_TIMEZONE: str = "Europe/Moscow"
-    
-    # Paths
-    BASE_DIR: Path = Field(default_factory=lambda: Path(__file__).parent.parent.parent)
-    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -178,11 +158,31 @@ class Settings(BaseSettings):
     @classmethod
     def parse_admin_ids(cls, v: str) -> List[int]:
         """Парсинг списка администраторов из строки"""
+        print(f"=== ОТЛАДКА parse_admin_ids ===")
+        print(f"Входное значение v: {v}")
+        print(f"Тип v: {type(v)}")
+        
+        # Если v - уже список, логируем это как проблему
+        if isinstance(v, list):
+            print(f"⚠️ ВНИМАНИЕ: Получен список вместо строки: {v}")
+            # Принудительно преобразуем обратно в строку
+            v = ",".join(str(x) for x in v)
+            print(f"Преобразовано в строку: {v}")
+        
         if not v:
             return []
+        
         try:
-            return [int(id_.strip()) for id_ in v.split(",") if id_.strip()]
+            # Разделяем по запятой и убираем пробелы
+            ids = []
+            for part in v.split(","):
+                part = part.strip()
+                if part:  # Пропускаем пустые части
+                    ids.append(int(part))
+            print(f"Результат парсинга: {ids}")
+            return ids
         except ValueError as e:
+            print(f"ОШИБКА парсинга: {e}")
             raise ValueError(f"ADMIN_IDS должен содержать числа, разделенные запятыми: {e}")
     
     @property
@@ -190,11 +190,10 @@ class Settings(BaseSettings):
         """Получение конфигурации бота"""
         return BotConfig(
             token=self.BOT_TOKEN,
-            admin_ids=self.ADMIN_IDS,
+            admin_ids=self.ADMIN_IDS,  # Здесь уже список!
             mode=self.BOT_MODE,
             skip_updates=self.SKIP_UPDATES
-        )
-    
+        )    
     @property
     def db(self) -> DatabaseConfig:
         """Получение конфигурации базы данных"""
