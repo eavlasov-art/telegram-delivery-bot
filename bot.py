@@ -1,93 +1,168 @@
 import asyncio
 import logging
+from pathlib import Path
 
-import asyncpg
 from aiogram import Bot, Dispatcher
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.contrib.fsm_storage.redis import RedisStorage2
-from aiogram_dialog import DialogRegistry
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
+from aiogram_dialog import setup_dialogs
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from redis.asyncio import Redis
 
-from tgbot.config import load_config
-from tgbot.filters.role import RoleFilter, AdminFilter
-from tgbot.handlers.admin import register_admin
-from tgbot.handlers.admin.broadcast import broadcast
-from tgbot.handlers.courier import register_courier
-from tgbot.handlers.customer import register_customer
-from tgbot.handlers.groups import register_group
-from tgbot.handlers.manager import register_manager
-from tgbot.middlewares.db import DbMiddleware
-from tgbot.middlewares.role import RoleMiddleware
-from tgbot.middlewares.support import SupportMiddleware
-from tgbot.middlewares.throttling import ThrottlingMiddleware
-from tgbot.services import repository
-from tgbot.services.stats_sender import send_stats
+from tgbot.config import settings
+from tgbot.dialogs import register_dialogs
+from tgbot.handlers import register_all_handlers
+from tgbot.middlewares import register_all_middlewares
+from tgbot.services.database import create_db_pool
+from tgbot.services.scheduler import setup_scheduler
+from tgbot.utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
 
-async def create_pool(user, password, database, host):
-    pool = await asyncpg.create_pool(user=user, password=password, database=database, host=host)
-    return pool
+async def setup_storage() -> tuple[MemoryStorage | RedisStorage, Redis | None]:
+    """Настройка хранилища FSM"""
+    if settings.redis.use_redis:
+        redis = Redis.from_url(
+            settings.redis.dsn,
+            encoding="utf-8",
+            decode_responses=True
+        )
+        storage = RedisStorage(
+            redis=redis,
+            key_builder=DefaultKeyBuilder(with_destiny=True)
+        )
+        return storage, redis
+    return MemoryStorage(), None
+
+
+async def on_startup(bot: Bot, scheduler: AsyncIOScheduler = None):
+    """Действия при запуске бота"""
+    logger.info("Бот запущен")
+    
+    # Установка команд меню
+    from tgbot.keyboards.commands import set_default_commands
+    await set_default_commands(bot)
+    
+    # Запуск планировщика если нужно
+    if scheduler and settings.scheduler.enabled:
+        scheduler.start()
+        logger.info("Планировщик задач запущен")
+
+
+async def on_shutdown(bot: Bot, pool, redis_client: Redis = None):
+    """Действия при остановке бота"""
+    logger.info("Бот останавливается")
+    
+    # Закрытие соединений
+    await bot.session.close()
+    await pool.close()
+    
+    if redis_client:
+        await redis_client.close()
+    
+    logger.info("Бот остановлен")
 
 
 async def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    """Главная функция запуска бота"""
+    # Настройка логирования
+    setup_logging()
+    
+    logger.info("Запуск бота...")
+    logger.info(f"Режим работы: {settings.BOT_MODE.value}")
+    logger.info(f"Использование Redis: {settings.redis.use_redis}")
+    
+    # Создание хранилища
+    storage, redis_client = await setup_storage()
+    
+    # Создание пула соединений с БД
+    pool = await create_db_pool(settings.db)
+    logger.info("Подключение к БД установлено")
+    
+    # Инициализация бота
+    bot = Bot(
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
-    logging.getLogger("aiogram_dialog").setLevel(logging.DEBUG)
-    logger.info("Starting bot")
-    config = load_config("bot.ini")
-
-    if config.tg_bot.use_redis:
-        storage = RedisStorage2()
-    else:
-        storage = MemoryStorage()
-    pool = await create_pool(
-        user=config.db.user,
-        password=config.db.password,
-        database=config.db.database,
-        host=config.db.host
-    )
-
-    bot = Bot(token=config.tg_bot.token, parse_mode='html')
-    dp = Dispatcher(bot, storage=storage)
-
-    # aiogram_dialog
-    logging.getLogger("aiogram_dialog").setLevel(logging.DEBUG)
-
-    registry = DialogRegistry(dp)
-    registry.register(broadcast)
-
-    dp.middleware.setup(ThrottlingMiddleware(limit=.5))
-    dp.middleware.setup(DbMiddleware(pool))
-    dp.middleware.setup(RoleMiddleware())
-    dp.middleware.setup(SupportMiddleware(Dispatcher=dp))
-    dp.filters_factory.bind(RoleFilter)
-    dp.filters_factory.bind(AdminFilter)
-
-    register_admin(dp)
-    register_manager(dp)
-    register_courier(dp)
-    register_customer(dp)
-    register_group(dp)
-
-    # register apscheduler @TODO запустить статистику
-    # scheduler = AsyncIOScheduler(timezone='Europe/Moscow')
-    # scheduler.start()
-
-    # scheduler.add_job(send_stats, 'cron', args=(bot, True, repository.Repo(pool)), hour=23, minute=0,
-    #                   replace_existing=True)  # Day stats
-    # scheduler.add_job(send_stats, 'cron', args=(bot, True, repository.Repo(pool)), day_of_week='Sun', hour=23, minute=0,
-    #                   replace_existing=True)  # week stats
-
-    # start
+    
+    # Инициализация диспетчера
+    dp = Dispatcher(storage=storage)
+    
+    # Регистрация мидлварей
+    register_all_middlewares(dp, pool)
+    
+    # Регистрация фильтров
+    from tgbot.filters import register_all_filters
+    register_all_filters(dp)
+    
+    # Регистрация хендлеров
+    register_all_handlers(dp)
+    
+    # Регистрация диалогов
+    register_dialogs(dp)
+    setup_dialogs(dp)
+    
+    # Настройка планировщика
+    scheduler = await setup_scheduler(bot, pool) if settings.scheduler.enabled else None
+    
+    # Передача зависимостей в диспетчер
+    dp.workflow_data.update({
+        "pool": pool,
+        "redis": redis_client,
+        "scheduler": scheduler,
+        "config": settings
+    })
+    
     try:
-        await dp.start_polling()
+        # Запуск бота
+        if settings.BOT_MODE.value == "webhook" and settings.webhook.url:
+            # Режим вебхуков
+            await bot.set_webhook(
+                url=settings.webhook.url,
+                allowed_updates=dp.resolve_used_update_types(),
+                drop_pending_updates=settings.bot.skip_updates,
+                max_connections=settings.webhook.max_connections
+            )
+            logger.info(f"Вебхук установлен на {settings.webhook.url}")
+            
+            # Запуск веб-сервера
+            from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+            from aiohttp import web
+            
+            app = web.Application()
+            webhook_requests_handler = SimpleRequestHandler(
+                dispatcher=dp,
+                bot=bot,
+            )
+            webhook_requests_handler.register(app, path=settings.webhook.path)
+            setup_application(app, dp, bot=bot)
+            
+            await on_startup(bot, scheduler)
+            runner = web.AppRunner(app)
+            await runner.setup()
+            await web.TCPSite(
+                runner,
+                host=settings.webhook.host,
+                port=settings.webhook.port
+            ).start()
+            
+            # Ожидание остановки
+            await asyncio.Event().wait()
+            
+        else:
+            # Режим поллинга
+            await on_startup(bot, scheduler)
+            await dp.start_polling(
+                bot,
+                allowed_updates=dp.resolve_used_update_types(),
+                drop_pending_updates=settings.bot.skip_updates
+            )
     finally:
-        await bot.close()
+        await on_shutdown(bot, pool, redis_client)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

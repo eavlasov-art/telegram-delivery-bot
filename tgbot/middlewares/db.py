@@ -1,21 +1,32 @@
+from typing import Callable, Dict, Any, Awaitable
+
+from aiogram import BaseMiddleware
+from aiogram.types import TelegramObject
 import asyncpg
-from aiogram.dispatcher.middlewares import LifetimeControllerMiddleware
 
-from tgbot.services.repository import Repo
+from tgbot.services.database import UserRepository, OrderRepository
 
 
-class DbMiddleware(LifetimeControllerMiddleware):
+class DbMiddleware(BaseMiddleware):
+    """Middleware для передачи пула соединений с БД"""
+    
     def __init__(self, pool: asyncpg.Pool):
-        super().__init__()
         self.pool = pool
-
-    async def pre_process(self, obj, data, *args):
-        db = await self.pool.acquire()
-        data["db"] = db
-        data["repo"] = Repo(db)
-
-    async def post_process(self, obj, data, *args):
-        del data["repo"]
-        db = data.get("db")
-        if db:
-            await db.close()
+        super().__init__()
+    
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        async with self.pool.acquire() as conn:
+            # Передаем коннект и репозитории в хендлер
+            data["conn"] = conn
+            data["user_repo"] = UserRepository(conn)
+            data["order_repo"] = OrderRepository(conn)
+            
+            # Для обратной совместимости с старым кодом
+            data["db_conn"] = conn
+            
+            return await handler(event, data)

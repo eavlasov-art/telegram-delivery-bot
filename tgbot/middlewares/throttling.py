@@ -1,54 +1,47 @@
-import asyncio
+import time
+from typing import Callable, Dict, Any, Awaitable
+from collections import defaultdict
 
-from aiogram import types, Dispatcher
-from aiogram.dispatcher import DEFAULT_RATE_LIMIT
-from aiogram.dispatcher.handler import CancelHandler, current_handler
-from aiogram.dispatcher.middlewares import BaseMiddleware
-from aiogram.utils.exceptions import Throttled
-from loguru import logger
+from aiogram import BaseMiddleware
+from aiogram.types import TelegramObject, Message, CallbackQuery
+from aiogram.exceptions import AiogramError
 
 
 class ThrottlingMiddleware(BaseMiddleware):
-    """
-    Throtling middleware that react to last message
-    """
-
-    def __init__(self, limit=DEFAULT_RATE_LIMIT, key_prefix='antiflood_'):
-        self.rate_limit = limit
-        self.prefix = key_prefix
-        super(ThrottlingMiddleware, self).__init__()
-
-    async def on_process_message(self, message: types.Message, data: dict):
-        handler = current_handler.get()
-        dispatcher = Dispatcher.get_current()
-        if handler:
-            limit = getattr(handler, 'throttling_rate_limit', self.rate_limit)
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
+    """Middleware для ограничения частоты запросов"""
+    
+    def __init__(self, rate_limit: float = 0.5):
+        self.rate_limit = rate_limit
+        self.users_last_time = defaultdict(float)
+        super().__init__()
+    
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        # Определяем user_id
+        user_id = None
+        if isinstance(event, Message):
+            user_id = event.from_user.id
+        elif isinstance(event, CallbackQuery):
+            user_id = event.from_user.id
         else:
-            limit = self.rate_limit
-            key = f"{self.prefix}_message"
+            return await handler(event, data)
+        
+        # Проверяем время последнего запроса
+        current_time = time.time()
+        last_time = self.users_last_time[user_id]
+        
+        if current_time - last_time < self.rate_limit:
+            # Слишком часто
+            return
+        
+        self.users_last_time[user_id] = current_time
+        
         try:
-            logger.debug(key)
-            await dispatcher.throttle(key, rate=limit)
-        except Throttled as t:
-            r = await self.message_throttled(message, t, data)
-            if not r:
-                raise CancelHandler()
-
-    async def message_throttled(self, message: types.Message, throttled: Throttled, data: dict):
-        handler = current_handler.get()
-        dispatcher = Dispatcher.get_current()
-        if handler:
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
-        else:
-            key = f"{self.prefix}_message"
-        delta = throttled.rate - throttled.delta
-
-        if throttled.exceeded_count <= 2:
-            logger.debug(f'{key} - Too many requests!')
-        await asyncio.sleep(delta)
-        thr = await dispatcher.check_key(key)
-
-        if thr.exceeded_count == throttled.exceeded_count:
-            logger.debug(f'Unlocked.{thr} {throttled}')
-            return True
+            return await handler(event, data)
+        except AiogramError:
+            # Игнорируем ошибки API
+            pass

@@ -1,27 +1,41 @@
-from aiogram.dispatcher.middlewares import LifetimeControllerMiddleware
+from typing import Callable, Dict, Any, Awaitable, Optional
 
-from tgbot.models.role import UserRole
+from aiogram import BaseMiddleware
+from aiogram.types import TelegramObject, Update, Message, CallbackQuery
+
+from tgbot.services.database import UserRepository
 
 
-class RoleMiddleware(LifetimeControllerMiddleware):
-    def __init__(self):
-        super().__init__()
-
-    async def pre_process(self, obj, data, *args):
-        repo = data['repo']
-        admins_list = [partner["userid"] for partner in await repo.get_partners(with_main=True)]
-        couriers_list = [courier['userid'] for courier in await repo.get_couriers_list()]
-        managers_list = [manager['userid'] for manager in await repo.get_managers_list()]
-        if not hasattr(obj, "from_user"):
-            data["role"] = None
-        elif obj.from_user.id in admins_list:
-            data["role"] = UserRole.ADMIN
-        elif obj.from_user.id in managers_list:
-            data["role"] = UserRole.MANAGER
-        elif obj.from_user.id in couriers_list:
-            data["role"] = UserRole.COURIER
-        else:
-            data["role"] = UserRole.USER
-
-    async def post_process(self, obj, data, *args):
-        del data["role"]
+class RoleMiddleware(BaseMiddleware):
+    """Middleware для определения роли пользователя"""
+    
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        # Получаем user_id из разных типов событий
+        user_id = None
+        if isinstance(event, Update):
+            if event.message:
+                user_id = event.message.from_user.id
+            elif event.callback_query:
+                user_id = event.callback_query.from_user.id
+        elif isinstance(event, Message):
+            user_id = event.from_user.id
+        elif isinstance(event, CallbackQuery):
+            user_id = event.from_user.id
+        
+        if user_id and "conn" in data:
+            # Получаем роль пользователя из БД
+            user_repo = UserRepository(data["conn"])
+            user = await user_repo.get_user(user_id)
+            
+            if user:
+                data["role"] = user.get("role", "customer")
+                data["user"] = user
+            else:
+                data["role"] = "unknown"
+        
+        return await handler(event, data)
