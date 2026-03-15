@@ -1,24 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from typing import Dict, Any, Optional
-
-
-def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура админ-панели"""
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="👥 Пользователи", callback_data="admin:users"),
-        InlineKeyboardButton(text="🏙 Города", callback_data="admin:cities")
-    )
-    builder.row(
-        InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
-        InlineKeyboardButton(text="📢 Рассылка", callback_data="admin:broadcast")
-    )
-    builder.row(
-        InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin:settings"),
-        InlineKeyboardButton(text="📝 Логи", callback_data="admin:logs")
-    )
-    return builder.as_markup()
+from typing import List, Dict, Any, Optional
 
 
 def get_order_keyboard(order_id: int, role: str, status: str = None) -> InlineKeyboardMarkup:
@@ -124,5 +106,23 @@ def get_confirmation_keyboard(action: str, item_id: int) -> InlineKeyboardMarkup
             text="❌ Отмена",
             callback_data=f"cancel:{action}:{item_id}"
         )
+    )
+    return builder.as_markup()
+
+
+def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура админ-панели"""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="👥 Пользователи", callback_data="admin:users"),
+        InlineKeyboardButton(text="🏙 Города", callback_data="admin:cities")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"),
+        InlineKeyboardButton(text="📢 Рассылка", callback_data="admin:broadcast")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⚙️ Настройки", callback_data="admin:settings"),
+        InlineKeyboardButton(text="📝 Логи", callback_data="admin:logs")
     )
     return builder.as_markup()

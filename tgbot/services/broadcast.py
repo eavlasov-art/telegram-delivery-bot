@@ -1,41 +1,87 @@
 import asyncio
+import logging
+from typing import Union, List
 
 from aiogram import Bot
-from aiogram.utils import exceptions
+from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter, TelegramForbiddenError
+from aiogram.types import Message
 
-from bot import logger
-from tgbot.services.repository import Repo
+logger = logging.getLogger(__name__)
 
 
-async def send_photo(bot: Bot, repo: Repo, user_id: int, photo, caption: str,
-                     disable_notification: bool = False):
+async def send_message(
+    bot: Bot,
+    user_id: int,
+    text: str,
+    photo: Union[str, None] = None,
+    disable_notification: bool = False
+) -> bool:
     """
-    Безопасная рассылка
-    :param repo:
-    :param bot:
-    :param caption:
-    :param photo:
-    :param user_id:
-    :param disable_notification:
-    :return:
+    Безопасная отправка сообщения пользователю
+    Возвращает True если успешно, False если ошибка
     """
     try:
-        await bot.send_photo(chat_id=user_id, photo=photo, caption=caption, disable_notification=disable_notification)
-    except exceptions.BotBlocked:
-        logger.error(f"Пользователь [ID:{user_id}]: Бот заблокирован пользователем")
-        await repo.delete_customer(user_id)
-    except exceptions.ChatNotFound:
-        logger.error(f"Пользователь [ID:{user_id}]: Неверный ID пользователя")
-    except exceptions.RetryAfter as e:
-        logger.error(f"Пользователь [ID:{user_id}]: Достигнут лимит рассылки. Засыпаю на {e.timeout} секунд.")
-        await asyncio.sleep(e.timeout)
-        return await send_photo(user_id=user_id, photo=photo, caption=caption)  # Recursive call
-    except exceptions.UserDeactivated:
-        logger.error(f"Пользователь [ID:{user_id}]: Аккаунт деактивирован/удалён")
-    except exceptions.TelegramAPIError:
-        logger.exception(f"Пользователь [ID:{user_id}]: Провалено")
-    except exceptions.BotKicked:
-        logger.exception(f"Бот был удален из группы. Удаляю [ID:{user_id}] из базы")
-        await repo.delete_customer(user_id)
-    else:
-        logger.info(f"Пользователь [ID:{user_id}]: Успешно")
+        if photo:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=photo,
+                caption=text,
+                disable_notification=disable_notification
+            )
+        else:
+            await bot.send_message(
+                chat_id=user_id,
+                text=text,
+                disable_notification=disable_notification
+            )
+        return True
+        
+    except TelegramRetryAfter as e:
+        logger.warning(f"Flood limit exceeded for user {user_id}. Retry after {e.retry_after} seconds")
+        await asyncio.sleep(e.retry_after)
+        return await send_message(bot, user_id, text, photo, disable_notification)
+        
+    except TelegramForbiddenError:
+        logger.info(f"User {user_id} blocked the bot")
+        return False
+        
+    except TelegramAPIError as e:
+        logger.error(f"Telegram API error for user {user_id}: {e}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Unexpected error for user {user_id}: {e}")
+        return False
+
+
+async def broadcast(
+    bot: Bot,
+    users: List[dict],
+    text: str,
+    photo: Union[str, None] = None,
+    delay: float = 0.05  # Задержка между сообщениями для избежания флуда
+) -> tuple[int, int]:
+    """
+    Массовая рассылка сообщений пользователям
+    
+    Returns:
+        tuple[int, int]: (количество успешных, количество ошибок)
+    """
+    sent = 0
+    failed = 0
+    
+    for user in users:
+        if await send_message(bot, user['user_id'], text, photo):
+            sent += 1
+        else:
+            failed += 1
+            
+        # Задержка между сообщениями
+        await asyncio.sleep(delay)
+        
+        # Логируем прогресс каждые 100 сообщений
+        if (sent + failed) % 100 == 0:
+            logger.info(f"Broadcast progress: {sent} sent, {failed} failed")
+    
+    logger.info(f"Broadcast completed: {sent} sent, {failed} failed")
+    return sent, failed

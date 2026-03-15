@@ -2,18 +2,17 @@ from aiogram.types import Message
 from aiogram.dispatcher.router import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram_dialog import Dialog, Window, DialogRegistry
+from aiogram.fsm.state import State, StatesGroup
+from aiogram_dialog import Dialog, Window, DialogManager, StartMode
 from aiogram_dialog.widgets.kbd import Button, Row, Cancel
 from aiogram_dialog.widgets.text import Const, Format
 from aiogram_dialog.widgets.input import TextInput, MessageInput
-from aiogram_dialog import DialogManager, StartMode
 from aiogram_dialog import ChatEvent
 
 from tgbot.filters.role import AdminFilter
 from tgbot.services.database import UserRepository
 
 router = Router()
-dialog_router = Router()
 
 
 # Состояния диалога

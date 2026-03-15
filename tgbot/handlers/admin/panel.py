@@ -16,7 +16,6 @@ async def cmd_admin(message: Message):
 
 async def cmd_stats(message: Message, user_repo: UserRepository):
     """Команда /stats - быстрая статистика"""
-    # Получаем статистику
     total_users = await user_repo.get_total_users()
     users_by_role = await user_repo.get_users_by_role()
     
@@ -48,18 +47,17 @@ async def show_admin_panel(message: Message):
     elif text == "📊 Статистика":
         await show_detailed_stats(message)
     elif text == "📢 Рассылка":
-        from .broadcast import start_broadcast
-        await start_broadcast(message)
+        from .broadcast import cmd_broadcast
+        await cmd_broadcast(message)
 
 
 async def show_detailed_stats(message: Message, user_repo: UserRepository):
     """Показать детальную статистику"""
-    # Детальная статистика по дням
     daily_stats = await user_repo.get_daily_stats()
     
     stats_text = "<b>📊 Детальная статистика:</b>\n\n"
     
-    for day in daily_stats[:7]:  # Последние 7 дней
+    for day in daily_stats[:7]:
         stats_text += f"{day['date']}: +{day['new_users']} новых\n"
     
     await message.answer(stats_text)
@@ -67,5 +65,5 @@ async def show_detailed_stats(message: Message, user_repo: UserRepository):
 
 async def process_stats(callback: CallbackQuery):
     """Обработка callback для статистики"""
-    await callback.answer()
-    # Логика обработки
+    await callback.answer("Статистика обновляется...")
+    # Здесь можно добавить логику

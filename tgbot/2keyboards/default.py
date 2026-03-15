@@ -6,6 +6,7 @@ def get_main_keyboard(role: str) -> ReplyKeyboardMarkup:
     """Главная клавиатура в зависимости от роли"""
     builder = ReplyKeyboardBuilder()
     
+    # Базовые кнопки для всех
     if role == "customer":
         builder.row(
             KeyboardButton(text="📦 Новый заказ"),
@@ -62,11 +63,6 @@ def get_main_keyboard(role: str) -> ReplyKeyboardMarkup:
         builder.row(
             KeyboardButton(text="📢 Рассылка"),
             KeyboardButton(text="📝 Логи")
-        )
-    else:
-        builder.row(
-            KeyboardButton(text="👤 Профиль"),
-            KeyboardButton(text="📞 Поддержка")
         )
     
     return builder.as_markup(resize_keyboard=True)
