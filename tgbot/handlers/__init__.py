@@ -6,7 +6,6 @@ from .customer import register_customer_handlers
 from .manager import register_manager_handlers
 from .groups import register_group_handlers
 from .commands import register_commands
-from .errors import register_error_handlers
 from tgbot.dialogs import register_dialogs
 
 
@@ -18,5 +17,4 @@ def register_all_handlers(dp: Dispatcher):
     register_courier_handlers(dp)
     register_customer_handlers(dp)
     register_group_handlers(dp)
-    register_error_handlers(dp)
     register_dialogs(dp)  # Добавляем диалоги

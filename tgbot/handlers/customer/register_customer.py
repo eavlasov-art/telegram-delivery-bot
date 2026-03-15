@@ -1,10 +1,10 @@
 from aiogram import Dispatcher
-from aiogram.types import ChatType
+from aiogram.enums import ChatType
 
 from tgbot.handlers.customer.change_profile_data import change_user_data, user_choice, new_info
 from tgbot.handlers.customer.delete_profile import delete_profile, delete_profile_yes, delete_profile_no
 from tgbot.handlers.customer.get_id import get_my_id
-from tgbot.handlers.customer.order import order_starts, order_all_info, order_time, order_other_details, \
+from tgbot.handlers.customer.orders import order_starts, order_all_info, order_time, order_other_details, \
     order_user_choice, order_date
 from tgbot.handlers.customer.orders_interaction import list_of_available_orders, show_chosen_page, show_item
 from tgbot.handlers.customer.our_services import our_services

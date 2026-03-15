@@ -1,16 +1,15 @@
-from aiogram import Dispatcher
 from aiogram_dialog import setup_dialogs
+from aiogram import Router
 
-from .broadcast import broadcast_dialog, router as broadcast_router
+# Здесь будут импорты твоих диалогов, например:
+# from .shop_dialog import shop_dialog
 
-
-def register_dialogs(dp: Dispatcher):
-    """Регистрация всех диалогов"""
-    # Регистрируем роутер с командой /broadcast
-    dp.include_router(broadcast_router)
+def register_dialogs(router: Router):
+    """
+    В версии aiogram_dialog 2.0+ больше нет DialogRegistry.
+    Теперь мы просто подключаем диалоги как роутеры.
+    """
+    # router.include_router(shop_dialog) # Пример подключения
     
-    # Регистрируем сам диалог
-    dp.include_router(broadcast_dialog)
-    
-    # Настраиваем диалоги
-    setup_dialogs(dp)
+    # Инициализация поддержки диалогов для всего роутера/диспетчера
+    setup_dialogs(router)

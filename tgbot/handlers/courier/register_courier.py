@@ -78,7 +78,7 @@ def register_courier(dp: Dispatcher):
                                        chat_type=ChatType.PRIVATE)
     dp.register_callback_query_handler(answer_support_call, support_callback.filter(messages="many", as_user="no"),
                                        chat_type=ChatType.PRIVATE)
-    dp.register_message_handler(not_supported, state="wait_in_support", content_types=ContentTypes.ANY,
+    dp.register_message_handler(not_supported, state="wait_in_support", content_types=None,
                                 chat_type=ChatType.PRIVATE)
     dp.register_callback_query_handler(exit_support, cancel_support_callback.filter(),
                                        state=["in_support", "wait_in_support", None], role=UserRole.COURIER)

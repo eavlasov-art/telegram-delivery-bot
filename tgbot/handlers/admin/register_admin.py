@@ -1,6 +1,8 @@
-from aiogram import Dispatcher
-from aiogram.types import ChatType
+from aiogram import Dispatcher, F
+from aiogram.enums import ChatType
+from aiogram.filters import Command, StateFilter
 
+from tgbot.filters.role import AdminFilter
 from tgbot.handlers.admin.broadcast import broadcast_start
 from tgbot.handlers.admin.couriers_interaction import list_of_available_couriers, show_chosen_page_couriers, \
     courier_action, add_courier, show_courier, courier_id, courier_fio, courier_number, \
@@ -29,21 +31,21 @@ from tgbot.states.admin.new_partner import NewPartner
 
 
 def register_admin(dp: Dispatcher):
-    dp.register_message_handler(start, commands=["start", "menu"], is_admin=True, chat_type=ChatType.PRIVATE)
-    dp.register_message_handler(start, text="🏠 Вернуться в меню", state="*", is_admin=True, chat_type=ChatType.PRIVATE)
+    dp.message.register(start, Command("start", "menu"), AdminFilter(), F.chat_type == ChatType.PRIVATE)
+    dp.message.register(start, F.text == "🏠 Вернуться в меню", StateFilter("*"), AdminFilter(), F.chat_type == ChatType.PRIVATE)
 
-    dp.register_message_handler(statistics, text="📈 Статистика", is_admin=True, chat_type=ChatType.PRIVATE)
+    dp.message.register(statistics, F.text == "📈 Статистика", AdminFilter(), F.chat_type == ChatType.PRIVATE)
 
     # Управление партнерами
-    dp.register_message_handler(list_of_available_partners, text="🤝 Партнеры", is_admin=True,
-                                chat_type=ChatType.PRIVATE)
-    dp.register_callback_query_handler(show_chosen_page_partners, pagination_call.filter(key="partners"))
-    dp.register_callback_query_handler(partner_action, partner.filter())
-    dp.register_callback_query_handler(add_partner, show_partner_data.filter(partner_id="add"))
-    dp.register_callback_query_handler(show_partner, show_partner_data.filter())
-    dp.register_message_handler(partner_city, state=NewPartner.city, is_admin=True, chat_type=ChatType.PRIVATE)
-    dp.register_message_handler(partner_id, state=NewPartner.admin_id, is_admin=True, chat_type=ChatType.PRIVATE)
-    dp.register_message_handler(partner_choice, state=NewPartner.choice, is_admin=True, chat_type=ChatType.PRIVATE)
+    dp.message.register(list_of_available_partners, F.text == "🤝 Партнеры", AdminFilter(),
+                        F.chat_type == ChatType.PRIVATE)
+    dp.callback_query.register(show_chosen_page_partners, pagination_call.filter(key="partners"))
+    dp.callback_query.register(partner_action, partner.filter())
+    dp.callback_query.register(add_partner, show_partner_data.filter(partner_id="add"))
+    dp.callback_query.register(show_partner, show_partner_data.filter())
+    dp.message.register(partner_city, StateFilter(NewPartner.city), AdminFilter(), F.chat_type == ChatType.PRIVATE)
+    dp.message.register(partner_id, StateFilter(NewPartner.admin_id), AdminFilter(), F.chat_type == ChatType.PRIVATE)
+    dp.message.register(partner_choice, StateFilter(NewPartner.choice), AdminFilter(), F.chat_type == ChatType.PRIVATE)
 
     # Управление менеджерами
     dp.register_message_handler(list_of_available_managers, text="👨‍💼 Менеджеры", is_admin=True,

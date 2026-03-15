@@ -1,5 +1,5 @@
 from aiogram import Dispatcher
-from aiogram.types import ChatType
+from aiogram.enums import ChatType
 
 from tgbot.handlers.courier.support_call import exit_support
 from tgbot.handlers.manager.change_courier_apply_status import change_courier_apply_status

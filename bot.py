@@ -7,7 +7,6 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
-from aiogram_dialog import setup_dialogs
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from redis.asyncio import Redis
 
@@ -112,8 +111,7 @@ async def main():
     register_all_handlers(dp)
     
     # Регистрация диалогов
-    register_dialogs(dp)
-    setup_dialogs(dp)
+    # register_dialogs(dp)
     
     # Настройка планировщика
     scheduler = await setup_scheduler(bot, pool) if settings.scheduler.enabled else None

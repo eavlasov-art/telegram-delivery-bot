@@ -877,3 +877,17 @@ class CityRepository(Repository):
         )
 
         return dict(stats) if stats else {}
+
+
+async def create_db_pool(db_config) -> asyncpg.Pool:
+    """Создание пула соединений с БД"""
+    return await asyncpg.create_pool(
+        user=db_config.user,
+        password=db_config.password,
+        database=db_config.database,
+        host=db_config.host,
+        port=db_config.port,
+        min_size=db_config.min_size,
+        max_size=db_config.max_size,
+        command_timeout=db_config.command_timeout
+    )

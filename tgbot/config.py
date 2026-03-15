@@ -45,6 +45,17 @@ class BotConfig(BaseModel):
     mode: BotMode
     skip_updates: bool
 
+class LoggingConfig(BaseModel):
+    level: LogLevel = LogLevel.INFO
+    format: str = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    log_file: str = "logs/bot.log"
+    enable_file_logging: bool = False
+    log_chat_id: Optional[int] = None
+
+class SchedulerConfig(BaseModel):
+    enabled: bool = False
+    timezone: str = "Europe/Moscow"
+
 # --- ГЛАВНЫЙ КЛАСС НАСТРОЕК ---
 class Settings(BaseSettings):
     # Telegram Bot
@@ -124,6 +135,40 @@ class Settings(BaseSettings):
             password=self.DB_PASSWORD, database=self.DB_NAME,
             min_size=self.DB_MIN_SIZE, max_size=self.DB_MAX_SIZE,
             command_timeout=self.DB_COMMAND_TIMEOUT
+        )
+
+    @property
+    def redis(self) -> RedisConfig:
+        return RedisConfig(
+            host=self.REDIS_HOST, port=self.REDIS_PORT, password=self.REDIS_PASSWORD,
+            db=self.REDIS_DB, use_redis=self.USE_REDIS
+        )
+
+    @property
+    def logging(self) -> LoggingConfig:
+        return LoggingConfig(
+            level=self.LOG_LEVEL,
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            log_file=self.LOG_FILE,
+            enable_file_logging=self.ENABLE_FILE_LOGGING,
+            log_chat_id=self.LOG_CHAT_ID
+        )
+
+    @property
+    def webhook(self) -> dict:
+        return {
+            "url": self.WEBHOOK_DOMAIN + self.WEBHOOK_PATH if self.WEBHOOK_DOMAIN else None,
+            "path": self.WEBHOOK_PATH,
+            "host": self.WEBHOOK_HOST,
+            "port": self.WEBHOOK_PORT,
+            "max_connections": 100
+        }
+
+    @property
+    def scheduler(self) -> SchedulerConfig:
+        return SchedulerConfig(
+            enabled=self.SCHEDULER_ENABLED,
+            timezone=self.SCHEDULER_TIMEZONE
         )
 
 # Инициализация

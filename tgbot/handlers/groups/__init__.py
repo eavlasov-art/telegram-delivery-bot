@@ -1,1 +1,1 @@
-from .register_group import register_group
+from .register_group import register_group as register_group_handlers

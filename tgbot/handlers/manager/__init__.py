@@ -18,7 +18,7 @@ def register_manager_handlers(dp: Dispatcher):
     # Текстовые команды
     dp.message.register(orders.all_orders, F.text == "📊 Все заказы", IsManager())
     dp.message.register(couriers.couriers_list, F.text == "👥 Курьеры", IsManager())
-    dp.message.register(reports.generate_report, F.text == "📈 Отчеты", IsManager())
+    dp.message.register(reports.daily_report, F.text == "📈 Отчеты", IsManager())
     
     # Callback-хендлеры
     dp.callback_query.register(orders.order_details_manager, F.data.startswith("manager_order:"))
